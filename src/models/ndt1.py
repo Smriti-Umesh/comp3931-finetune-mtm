@@ -17,8 +17,23 @@ from models.masker import Masker
 
 DEFAULT_CONFIG = "src/configs/ndt1.yaml"
 
-with open('data/target_eids.txt') as file:
-    include_eids = [line.rstrip() for line in file]
+
+def _default_eid_lookup_path() -> str:
+    # this path could need changing in the future 
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "data", "target_eids.txt")
+    )
+
+
+def load_eid_lookup(eid_lookup_path: Optional[str] = None) -> List[str]:
+    # Centralize session-id loading so local fine-tune code can inject an
+    # explicit lookup instead of mutating tracked repo files on disk.
+    lookup_path = eid_lookup_path or _default_eid_lookup_path()
+    with open(lookup_path) as file:
+        eid_lookup = [line.rstrip() for line in file if line.rstrip()]
+    if not eid_lookup:
+        raise ValueError(f"Session lookup file is empty: {lookup_path}")
+    return eid_lookup
 
 @dataclass
 class NDT1Output(ModelOutput):
@@ -75,7 +90,7 @@ def apply_rotary_pos_emb(q, k, pos_ids, cos, sin, unsqueeze_dim=1):
 # Embed and stack
 class NeuralEmbeddingLayer(nn.Module):
 
-    def __init__(self, hidden_size, n_channels, config: DictConfig):
+    def __init__(self, hidden_size, n_channels, config: DictConfig, eid_lookup: Optional[List[str]] = None):
         super().__init__()
 
         self.adapt = config.adapt
@@ -152,7 +167,9 @@ class NeuralEmbeddingLayer(nn.Module):
         # Embed session token
         self.use_session = config.use_session
         if self.use_session:
-            self.eid_lookup = include_eids
+            # Use an explicit lookup when provided so a new local session can be
+            # appended without rewriting the original pretrained IBL lookup file.
+            self.eid_lookup = list(eid_lookup) if eid_lookup is not None else load_eid_lookup()
             self.eid_to_indx = {r: i for i,r in enumerate(self.eid_lookup)}
             self.embed_session = nn.Embedding(len(self.eid_lookup), hidden_size) 
 
@@ -208,6 +225,12 @@ class NeuralEmbeddingLayer(nn.Module):
             )
 
         if self.use_session:
+            # Fail loudly on unseen session ids instead of producing a vague key
+            # error deep inside the forward pass.
+            if eid is None:
+                raise ValueError("Session embedding is enabled but no eid was provided.")
+            if eid not in self.eid_to_indx:
+                raise ValueError(f"Session eid '{eid}' is not present in the configured eid lookup.")
             session_idx = torch.tensor(self.eid_to_indx[eid], dtype=torch.int64, device=spikes.device)
             x = torch.cat((self.embed_session(session_idx)[None,None,:].expand(B,-1,-1), x), dim=1)
             spikes_mask = F.pad(spikes_mask, (1, 0), value=1)
@@ -446,12 +469,25 @@ class NeuralEncoder(nn.Module):
 
         self.use_prompt = config.embedder.use_prompt
         self.use_session = config.embedder.use_session
+        # Thread the lookup through model construction so local fine-tuning can
+        # extend the pretrained session table with one new row for the control session.
+        eid_lookup = kwargs.get("eid_lookup")
 
         # Embedding layer
         if config.stitching:
-            self.embedder = NeuralEmbeddingLayer(self.hidden_size, config.embedder.n_channels, config.embedder)
+            self.embedder = NeuralEmbeddingLayer(
+                self.hidden_size,
+                config.embedder.n_channels,
+                config.embedder,
+                eid_lookup=eid_lookup,
+            )
         else:
-            self.embedder = NeuralEmbeddingLayer(self.hidden_size, kwargs['num_neurons'][0], config.embedder)
+            self.embedder = NeuralEmbeddingLayer(
+                self.hidden_size,
+                kwargs['num_neurons'][0],
+                config.embedder,
+                eid_lookup=eid_lookup,
+            )
 
         # Transformer
         self.layers = nn.ModuleList([NeuralEncoderLayer(idx, config.embedder.max_F, config.transformer) for idx in range(self.n_layers)])
