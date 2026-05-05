@@ -188,5 +188,14 @@ artifacts/combined_generalization_gap.json
 
 These files record the command-line arguments, model configuration, checkpoint-loading report, training history, and deterministic evaluation metrics.
 
+When committing to GitHub ensure your name and University email is set (not the HPC account email!)
+
+~~~ bash 
+git config --global user.name "Your Name"
+git config --global user.email "username@uni.ac.uk"
+~~~
+
 
 Note: Hyperparameters tables for these runs can be referred to in Appendix C of the project file. 
+
+
