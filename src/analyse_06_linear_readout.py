@@ -1,31 +1,5 @@
 """
  Linear readout from latent space.
-
-Tests whether the model's 512-dim shared encoder latent linearly encodes
-individual held-out neuron activity — without using the neuron-specific
-decoder head (StitchDecoder) at all.
-
-For each held-out neuron n:
-  1. Fit Ridge regression:  latent_train [W_train, 512]  →  mean_rate_train [W_train]
-  2. Predict on test:       latent_test  [W_test,  512]  →  mean_rate_hat   [W_test]
-  3. Compare R^2 against the full model's test-set prediction R^2
-
-Three decoders are compared:
-  model_r2    : full model (NeuralEncoder + StitchDecoder) on test windows
-  latent_r2   : Ridge regression from 512-dim latent (fit on train)
-  poprate_r2  : Ridge regression from 1-D mean population rate (sanity baseline)
-
-Interpretation:
-  latent_r2 ≈ model_r2   → shared latent captures the signal; decoder is just scaling
-  latent_r2 << model_r2  → the neuron-specific StitchDecoder layers matter
-  latent_r2 >> poprate_r2 → latent encodes neuron-specific information, not just global activity
-
-Requires per-split artifacts:
-  artifacts/unmasked_latent_mean_pooled.npy           [W_test, 512]  (test split)
-  artifacts/eval_predictions.npz                                     (test split)
-  artifacts/eval_train/unmasked_latent_mean_pooled.npy[W_train, 512] (train split)
-  artifacts/eval_train/eval_predictions.npz                          (train split)
-
 """
 
 import argparse

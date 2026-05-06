@@ -1,8 +1,5 @@
 """
- Selected latent-space comparisons across representative runs.
-
-This script picks a compact, thesis-friendly set of runs and fits a shared
-latent embedding for each comparison family:
+ Selected latent-space comparisons across runs.
 
   - combined_neuron : best 8BS MtM, best true015 MtM, best rerun MtM,
                       best NDT1 scratch combined, best stitched combined
@@ -13,19 +10,6 @@ latent embedding for each comparison family:
                       best stitched neuron
   - causal_family   : best MtM causal, best NDT1 scratch causal,
                       best stitched causal
-
-Selection rules:
-  - combined MtM pools are ranked by average test BPS across neuron + causal
-  - single-task pools are ranked by test BPS
-
-For each comparison family, the script:
-  - loads mean-pooled unmasked latents [N, 512]
-  - balances the number of windows per run
-  - optionally L2 normalises the latent vectors
-  - fits a shared PCA basis and projects to a configurable PCA subspace
-  - fits shared 2D PCA / UMAP / t-SNE embeddings
-  - saves clean plots coloured by run label and by mean population firing rate
-  - writes selection and point-level CSVs for provenance
 """
 
 import argparse

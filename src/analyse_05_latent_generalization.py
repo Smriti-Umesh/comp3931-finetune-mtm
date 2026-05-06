@@ -1,9 +1,6 @@
 """
  Latent-space generalisation by split.
 
-For one run, this script asks the key latent generalisation question:
-do train/val/test windows intermix in latent space, or do they cluster apart?
-
 It loads latent vectors for the available evaluation splits, balances the number
 of windows per split, fits a shared PCA basis, then produces shared PCA / UMAP /
 t-SNE plots coloured by split and by mean population firing rate.

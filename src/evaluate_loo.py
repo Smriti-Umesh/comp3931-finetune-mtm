@@ -1,31 +1,5 @@
 """
 Leave-One-Out (LOO) co-smoothing evaluation.
-
-This is the evaluation protocol used by the IBL-MtM paper.  For every neuron n,
-the model is given the full population with ONLY neuron n zeroed out, and it must
-predict neuron n from the remaining N-1 neurons.  This gives one R^2 and one
-bits-per-spike score per neuron, for ALL neurons — not just a held-out subset.
-
-Compare this to the batch-masking evaluation run during training, which:
-  - masks 30 % of neurons simultaneously (degraded context for each masked neuron)
-  - evaluates only those ~106 neurons (the other 249 always have context)
-
-
-bits-per-spike formula (matching IBL-MtM eval_utils.py exactly):
-  null_rate  = mean(true_spikes)         [test-set mean of THIS neuron, not train mean]
-  nll_model  = sum( rate - count*log(rate) )
-  nll_null   = sum( null - count*log(null) )
-  bps        = (nll_null - nll_model) / (log(2) * total_spikes)
-
-Note: the gammaln(count+1) term is identical in both NLLs and cancels out,
-      so we omit it (same as local_eval_artifacts.py).
-      This needs to run on GPU. 
-
-Requires:
-  <run-dir>/best.pt
-  <run-dir>/artifacts/run_metadata.json
-
-
 """
 
 import argparse

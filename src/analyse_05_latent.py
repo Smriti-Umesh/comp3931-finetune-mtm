@@ -1,40 +1,9 @@
 """
-Section 5: Latent space analysis.
+ Latent space analysis.
 
 Loads the unmasked latent representations saved by local_eval_artifacts.py
 and asks three questions:
 
-  1. How much variance is captured by the leading PCs?  (scree plot)
-  2. Does the latent space track time / population activity?
-     (PC1–PC2 scatter coloured by window index and mean firing rate)
-  3. Which held-out neurons are most linearly encoded in the top latent dims?
-     (per-neuron correlation with PC projections)
-  4. What does the within-window temporal trajectory look like?
-     (PCA of the full [T=100, 512] latent sequence for one exemplar window)
-
-Inputs (from a single run directory):
-  - artifacts/unmasked_latent_mean_pooled.npy   [W, 512]
-  - artifacts/unmasked_latent_sequence.npz      {latents: [W, T, 512]}  (for trajectory)
-  - artifacts/eval_predictions.npz              {targets, pred_rates, eval_mask,
-                                                  heldout_neuron_indices, baseline_per_neuron}
-
-Outputs (all written to --output-dir):
-  - latent_scree.png            : % variance explained per PC
-  - latent_pca_time.png         : PC1 vs PC2 coloured by window index (chronological)
-  - latent_pca_rate.png         : PC1 vs PC2 coloured by mean population firing rate
-  - latent_tsne_time.png        : t-SNE embedding coloured by window index
-  - latent_tsne_rate.png        : t-SNE embedding coloured by mean population firing rate
-  - latent_umap_time.png        : UMAP embedding coloured by window index
-  - latent_umap_rate.png        : UMAP embedding coloured by mean population firing rate
-  - latent_neuron_alignment.png : top held-out neurons ranked by |corr| with PC1
-  - latent_trajectory.png       : temporal trajectory within one exemplar window
-  - latent_alignment.csv        : per-neuron correlation with top-5 PCs
-
-Usage:
-    python src/analyse_05_latent.py \\
-        --run   results/local_neuron_mask_full_plain_lr5e-5_4326037 \\
-        --label "MtM-neuron" \\
-        --output-dir results/report/section5_latent
 """
 
 import argparse
@@ -47,15 +16,9 @@ import numpy as np
 from sklearn.manifold import TSNE
 
 
-# ---------------------------------------------------------------------------
-# Load
-# ---------------------------------------------------------------------------
 
 def _find(run_dir: Path, name: str):
-    # Flat layout:   artifacts/<name>           (older single-mask runs)
-    # Nested layout: artifacts/eval_test_neuron/<name>  (combined-mask runs)
-    # For combined runs we prefer the neuron-masking eval because it gives
-    # heldout_neuron_indices for the alignment plot.
+
     for candidate in [
         run_dir / "artifacts" / name,
         run_dir / "artifacts" / "eval_test_neuron" / name,
@@ -91,10 +54,6 @@ def load_predictions(run_dir: Path):
     return np.load(path)
 
 
-# ---------------------------------------------------------------------------
-# PCA via full SVD
-# ---------------------------------------------------------------------------
-
 def run_pca(X):
     """
     Centre X [N, D] and return (coords, pct_var, components, mean).
@@ -116,8 +75,6 @@ def run_pca(X):
 def run_tsne(X, random_state=0, perplexity=30.0):
     """
     Run 2D t-SNE on latent vectors.
-
-    We first project to a modest PCA subspace for stability/speed, then fit t-SNE.
     """
     n_samples, n_features = X.shape
     if n_samples < 4:
@@ -164,10 +121,6 @@ def run_umap(X, random_state=0, n_neighbors=15, min_dist=0.1):
     )
     return reducer.fit_transform(X), None
 
-
-# ---------------------------------------------------------------------------
-# Plots
-# ---------------------------------------------------------------------------
 
 def _style(ax):
     ax.spines["top"].set_visible(False)
@@ -216,10 +169,9 @@ def plot_pca_scatter(coords, targets, output_dir, label, plt):
     W = coords.shape[0]
     pc1, pc2 = coords[:, 0], coords[:, 1]
 
-    # Colour 1: chronological window index (proxy for recording time)
     window_idx = np.arange(W, dtype=float)
 
-    # Colour 2: mean population firing rate per window
+    # mean population firing rate per window
     pop_rate = targets.mean(axis=(1, 2))  # [W]
 
     fig_time, ax_time = plt.subplots(figsize=(6.0, 5.0))
@@ -270,7 +222,7 @@ def plot_neuron_alignment(coords, targets, heldout_indices, output_dir, label, p
                           n_show=20):
     """
     For each held-out neuron compute the Pearson correlation between its
-    window-mean firing rate and each of PC1–PC5, then rank neurons by |corr| with PC1.
+    window-mean firing rate and each of PC1-PC5, then rank neurons by |corr| with PC1.
     """
     n_pcs = min(5, coords.shape[1])
     rows = []
@@ -328,12 +280,11 @@ def plot_trajectory(latent_seq, output_dir, label, plt, window_idx=None):
     within-window temporal dynamics.
 
     latent_seq : [W, T, D]
-    window_idx : which window to use (default: the one with highest mean norm)
+    window_idx : which window to use 
     """
     W, T, D = latent_seq.shape
 
     if window_idx is None:
-        # Pick window with largest latent norm variance (most dynamic)
         norms = np.linalg.norm(latent_seq, axis=-1)  # [W, T]
         window_idx = int(np.argmax(norms.var(axis=1)))
 
@@ -377,10 +328,6 @@ def plot_trajectory(latent_seq, output_dir, label, plt, window_idx=None):
     plt.close(fig)
 
 
-# ---------------------------------------------------------------------------
-# Save CSV
-# ---------------------------------------------------------------------------
-
 def write_alignment_csv(rows, output_dir):
     if not rows:
         return
@@ -389,11 +336,6 @@ def write_alignment_csv(rows, output_dir):
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
@@ -494,7 +436,7 @@ def main():
             )
 
     # --- Neuron alignment ---
-    print(f"\nNeuron–latent alignment (top {args.n_neurons}):")
+    print(f"\nNeuron-latent alignment (top {args.n_neurons}):")
     alignment_rows = plot_neuron_alignment(
         coords, targets, heldout, args.output_dir, label, plt, n_show=args.n_neurons)
     if alignment_rows:

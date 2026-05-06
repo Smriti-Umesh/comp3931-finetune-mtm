@@ -1,8 +1,7 @@
 """
-Spike-event honesty check.
+Spike Group Analysis
 
 Breaks the held-out loss down by the true spike count in each bin
-
 
 Loads eval_predictions.npz (one or more runs) and produces:
   - spike_groups_<label>.png  : per-run grouped bar chart (model vs baseline)
